@@ -14,8 +14,12 @@ futures = "0.3.21"
 hex = "0.4.3"
 http-types = "2.12.0"
 ndjsonlogger = "0.1.0"
-ndjsonloggercore = {version = "0.1.0", features = ["isotimestamp", "std"]}
 random-fast-rng = "0.1.1"
 serde = {version = "1.0.140", features=["derive"]}
 serde_json = "1.0.82"
 sha1 = "0.10.1"
+
+[dependencies.ndjsonloggercore]
+git = "https://github.com/flickpp/ndjsonloggercore.git"
+rev = "2377b15b140655cce91c44736a739ff95bdf42a6"
+features = ["isotimestamp", "std"]

@@ -811,8 +811,7 @@ checksum = "35b89d0578e6b0d6773fb9b1cf929fc36869d981d34867483f3e2657508735ca"
 [[package]]
 name = "ndjsonloggercore"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "674579df3c1af9ffbbd4207961b38e961e28d4f2b60eefc97532dfccb588f4a6"
+source = "git+https://github.com/flickpp/ndjsonloggercore.git?rev=2377b15b140655cce91c44736a739ff95bdf42a6#2377b15b140655cce91c44736a739ff95bdf42a6"
 dependencies = [
  "chrono",
  "ryu",
