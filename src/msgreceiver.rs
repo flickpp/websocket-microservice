@@ -7,6 +7,7 @@ use async_std::task;
 
 use http_types::{Body, Method, Mime, Request, Response, StatusCode};
 use ndjsonlogger::{debug, error, info};
+use sha1::{Digest, Sha1};
 
 use crate::exchange::{self, BroadcastType};
 use crate::httpserver;
@@ -48,19 +49,19 @@ async fn handle_req(
     }
 
     let mut session_id: Option<String> = None;
-    let mut login_id: Option<String> = None;
+    let mut login_ids: Option<String> = None;
 
     for (key, value) in req.url().query_pairs() {
-        if key == "session_id" {
+        if key.eq_ignore_ascii_case("session_id") {
             session_id = Some(value.to_string());
-        } else if key == "login_id" {
-            login_id = Some(value.to_string());
+        } else if key.eq_ignore_ascii_case("login_ids") {
+            login_ids = Some(value.to_string());
         }
     }
 
-    let broadcast_type = match (session_id, login_id) {
-        (Some(session_id), None) => BroadcastType::SessionId(session_id),
-        (None, Some(login_id)) => BroadcastType::LoginId(login_id),
+    let broadcast_types = match (session_id, login_ids) {
+        (Some(session_id), None) => vec![BroadcastType::SessionId(session_id)],
+        (None, Some(login_id)) => build_login_ids(login_id),
         (Some(_), Some(_)) => {
             let mut resp = Response::new(StatusCode::BadRequest);
             resp.insert_header(
@@ -92,15 +93,26 @@ async fn handle_req(
         }
     };
 
-    let resp_body = match msg_type_res {
+    let (digest, msg_type) = match msg_type_res {
         Err(e) => {
             let mut resp = Response::new(e.status());
             resp.insert_header("X-Error", "couldn't read body");
             return Ok(resp);
         }
-        Ok(MsgType::Binary(v)) => exchange.send_binary(broadcast_type, v).await,
-        Ok(MsgType::String(s)) => exchange.send_string(broadcast_type, s).await,
+        Ok(MsgType::Binary(v)) => (compute_digest(&v), MsgType::Binary(v)),
+        Ok(MsgType::String(s)) => (compute_digest(s.as_bytes()), MsgType::String(s)),
     };
+
+    let mut resp_body = exchange::ResponseBody::default();
+    for broadcast_type in broadcast_types {
+        let resp = match msg_type {
+            MsgType::Binary(ref v) => exchange.send_binary(broadcast_type, v, &digest).await,
+            MsgType::String(ref s) => exchange.send_string(broadcast_type, s, &digest).await,
+        };
+
+        resp_body.digest = resp.digest;
+        resp_body.session_ids.extend(resp.session_ids);
+    }
 
     info!("sent messages to clients", {
         trace_id                = trace_ctx.trace_id(),
@@ -116,4 +128,17 @@ async fn handle_req(
     resp.set_body(Body::from_json(&resp_body).expect("couldn't serialize response body to json"));
 
     Ok(resp)
+}
+
+fn build_login_ids(login_ids: String) -> Vec<BroadcastType> {
+    login_ids
+        .split(',')
+        .map(|l| BroadcastType::LoginId(l.to_string()))
+        .collect()
+}
+
+fn compute_digest(val: &[u8]) -> String {
+    let mut hasher = Sha1::new();
+    hasher.update(val);
+    hex::encode(&hasher.finalize()[..12])
 }

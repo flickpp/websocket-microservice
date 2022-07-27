@@ -9,7 +9,6 @@ use async_std::sync::Mutex;
 use async_std::task::{self, sleep};
 use futures::future::{select, Either};
 use futures::StreamExt;
-use sha1::{Digest, Sha1};
 
 #[derive(Clone)]
 pub struct Exchange {
@@ -60,19 +59,29 @@ impl Exchange {
         slf
     }
 
-    pub async fn send_binary(&self, broadcast_type: BroadcastType, val: Vec<u8>) -> ResponseBody {
+    pub async fn send_binary(
+        &self,
+        broadcast_type: BroadcastType,
+        val: &[u8],
+        digest: &str,
+    ) -> ResponseBody {
         self.inner
             .lock()
             .await
-            .send_binary(broadcast_type, val)
+            .send_binary(broadcast_type, val, digest)
             .await
     }
 
-    pub async fn send_string(&self, broadcast_type: BroadcastType, val: String) -> ResponseBody {
+    pub async fn send_string(
+        &self,
+        broadcast_type: BroadcastType,
+        val: &str,
+        digest: &str,
+    ) -> ResponseBody {
         self.inner
             .lock()
             .await
-            .send_string(broadcast_type, val)
+            .send_string(broadcast_type, val, digest)
             .await
     }
 
@@ -99,12 +108,6 @@ impl Exchange {
     async fn remove_session_id(&self, session_id: &str) {
         self.inner.lock().await.remove_session_id(session_id);
     }
-}
-
-fn compute_digest(val: &[u8]) -> String {
-    let mut hasher = Sha1::new();
-    hasher.update(val);
-    hex::encode(&hasher.finalize()[..12])
 }
 
 impl Inner {
@@ -147,17 +150,25 @@ impl Inner {
         }
     }
 
-    async fn send_string(&self, broadcast_type: BroadcastType, val: String) -> ResponseBody {
+    async fn send_string(
+        &self,
+        broadcast_type: BroadcastType,
+        val: &str,
+        digest: &str,
+    ) -> ResponseBody {
         let (resp_send, resp_recv) = unbounded();
-        let digest = compute_digest(val.as_bytes());
-        let msg = WebsocketMessage::String((val, digest, resp_send));
+        let msg = WebsocketMessage::String((val.to_owned(), digest.to_owned(), resp_send));
         self.send(broadcast_type, msg, resp_recv).await
     }
 
-    async fn send_binary(&self, broadcast_type: BroadcastType, val: Vec<u8>) -> ResponseBody {
+    async fn send_binary(
+        &self,
+        broadcast_type: BroadcastType,
+        val: &[u8],
+        digest: &str,
+    ) -> ResponseBody {
         let (resp_send, resp_recv) = unbounded();
-        let digest = compute_digest(&val);
-        let msg = WebsocketMessage::Binary((val, digest, resp_send));
+        let msg = WebsocketMessage::Binary((val.to_owned(), digest.to_owned(), resp_send));
         self.send(broadcast_type, msg, resp_recv).await
     }
 
