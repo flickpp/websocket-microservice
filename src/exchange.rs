@@ -46,6 +46,11 @@ pub struct ResponseBody {
     pub digest: String,
 }
 
+#[derive(serde::Serialize, Default)]
+pub struct LoginIds {
+    pub login_ids: Vec<String>,
+}
+
 impl Exchange {
     pub fn new(ping_period: time::Duration) -> Self {
         let (pingq_send, pingq_recv) = unbounded();
@@ -107,6 +112,12 @@ impl Exchange {
 
     async fn remove_session_id(&self, session_id: &str) {
         self.inner.lock().await.remove_session_id(session_id);
+    }
+
+    pub async fn get_login_ids(&self) -> LoginIds {
+        LoginIds {
+            login_ids: self.inner.lock().await.all_login_ids(),
+        }
     }
 }
 
@@ -251,6 +262,10 @@ impl Inner {
 
     fn get_session_ids<'s>(&'s self, login_id: &str) -> Option<&'s HashSet<String>> {
         self.login_map.get(login_id)
+    }
+
+    fn all_login_ids(&self) -> Vec<String> {
+        self.login_map.keys().map(|s| s.to_owned()).collect()
     }
 }
 

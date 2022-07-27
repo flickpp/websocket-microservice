@@ -42,6 +42,20 @@ async fn handle_req(
     exchange: exchange::Exchange,
     trace_ctx: httpserver::TraceContext,
 ) -> Result<Response, &'static str> {
+    if req.method() == Method::Get && req.url().path().eq_ignore_ascii_case("/login_ids") {
+        let mut resp = Response::new(StatusCode::Ok);
+        resp.set_content_type(Mime::from_str("application/json").unwrap());
+        let body = exchange.get_login_ids().await;
+        resp.set_body(Body::from_json(&body).expect("couldn't deserialize body"));
+        info!("retrieved all login_ids", {
+            trace_id = trace_ctx.trace_id(),
+            span_id = trace_ctx.span_id(),
+            parent_id: Option<&str> = trace_ctx.parent_id(),
+            num_login_ids: usize = body.login_ids.len()
+        });
+        return Ok(resp);
+    }
+
     if req.method() != Method::Post {
         let mut resp = Response::new(StatusCode::BadRequest);
         resp.insert_header("X-Error", "only POST method valid");
